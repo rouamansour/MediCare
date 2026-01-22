@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Cabinet médical - Front</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #0f766e;
+            --danger: #dc2626;
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --border: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: var(--bg);
+            color: #111827;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: var(--primary);
+        }
+
+        section {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            color: #1f2937;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .row > div {
+            flex: 1;
+        }
+
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            max-height: 220px;
+            overflow: auto;
+            background: #f9fafb;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .error {
+            border-left-color: var(--danger);
+            background: #fef2f2;
+            color: #7f1d1d;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #6b7280;
+        }
+
+        @media (max-width: 700px) {
+            .row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>Cabinet médical – Test API</h1>
+
+<section>
+    <h2>Créer un patient</h2>
+    <label>Nom
+        <input id="patientName" placeholder="Nom du patient">
+    </label>
+    <label>Numéro de sécurité sociale
+        <input id="patientNss" placeholder="NSS">
+    </label>
+    <button onclick="createPatient()">Enregistrer</button>
+    <div class="result" id="patientCreateResult"></div>
+</section>
+
+<section>
+    <h2>Liste des médecins</h2>
+    <button onclick="loadDoctors()">Charger</button>
+    <div class="result" id="doctorsResult"></div>
+</section>
+
+<section>
+    <h2>Historique patient</h2>
+    <label>ID patient
+        <input type="number" id="historyPatientId">
+    </label>
+    <button onclick="loadPatientHistory()">Afficher</button>
+    <div class="result" id="historyResult"></div>
+</section>
+
+<section>
+    <h2>Prendre un rendez-vous</h2>
+    <div class="row">
+        <div>
+            <label>ID patient
+                <input type="number" id="appointmentPatientId">
+            </label>
+        </div>
+        <div>
+            <label>ID médecin
+                <input type="number" id="appointmentDoctorId">
+            </label>
+        </div>
+    </div>
+    <label>Date & heure (ISO)
+        <input id="appointmentDateTime" placeholder="2026-01-19T10:30">
+    </label>
+    <button onclick="createAppointment()">Créer</button>
+    <div class="result" id="appointmentResult"></div>
+</section>
+
+<section>
+    <h2>Annuler un rendez-vous</h2>
+    <label>ID rendez-vous
+        <input type="number" id="cancelAppointmentId">
+    </label>
+    <button onclick="cancelAppointment()">Annuler</button>
+    <div class="result" id="cancelResult"></div>
+</section>
+
+<section>
+    <h2>Valider une consultation</h2>
+    <label>ID rendez-vous
+        <input type="number" id="consultAppointmentId">
+    </label>
+    <label>Type de visite
+        <select id="consultVisitType">
+            <option>STANDARD</option>
+            <option>URGENCE</option>
+            <option>CONTROLE</option>
+        </select>
+    </label>
+    <label>Notes médicales
+        <textarea id="consultNotes"></textarea>
+    </label>
+    <button onclick="createConsultation()">Valider</button>
+    <div class="result" id="consultResult"></div>
+</section>
+
+<script>
+    const apiBase = '';
+
+    function showLoading(id) {
+        const el = document.getElementById(id);
+        el.className = 'result loading';
+        el.textContent = 'Chargement...';
+    }
+
+    function showResult(id, res) {
+        const el = document.getElementById(id);
+        el.className = 'result' + (res.ok ? '' : ' error');
+        el.textContent = `Status: ${res.status}\n\n${res.body}`;
+    }
+
+    function request(url, options, resultId) {
+        showLoading(resultId);
+        fetch(apiBase + url, options)
+            .then(r => r.text().then(t => ({
+                ok: r.ok,
+                status: r.status,
+                body: t && r.headers.get('content-type')?.includes('json')
+                    ? JSON.stringify(JSON.parse(t), null, 2)
+                    : t
+            })))
+            .then(res => showResult(resultId, res))
+            .catch(err => showResult(resultId, { ok: false, status: 'Erreur', body: err }));
+    }
+
+    function createPatient() {
+        request('/api/patients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: patientName.value,
+                socialSecurityNumber: patientNss.value
+            })
+        }, 'patientCreateResult');
+    }
+
+    function loadDoctors() {
+        request('/api/doctors', {}, 'doctorsResult');
+    }
+
+    function loadPatientHistory() {
+        request(`/api/patients/${historyPatientId.value}/history`, {}, 'historyResult');
+    }
+
+    function createAppointment() {
+        request('/api/appointments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                patientId: Number(appointmentPatientId.value),
+                doctorId: Number(appointmentDoctorId.value),
+                startTime: appointmentDateTime.value
+            })
+        }, 'appointmentResult');
+    }
+
+    function cancelAppointment() {
+        request(`/api/appointments/${cancelAppointmentId.value}/cancel`, {
+            method: 'PATCH'
+        }, 'cancelResult');
+    }
+
+    function createConsultation() {
+        request('/api/consultations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                appointmentId: Number(consultAppointmentId.value),
+                visitType: consultVisitType.value,
+                notes: consultNotes.value
+            })
+        }, 'consultResult');
+    }
+</script>
+
+</body>
+</html>
